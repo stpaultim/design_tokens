@@ -5,24 +5,32 @@
   Backdrop.behaviors.themeTokensAdmin = {
     attach: function (context, settings) {
 
-      // Preview panel toggle.
-      $('#theme-tokens-preview-toggle', context).once('theme-tokens-toggle').on('click', function () {
-        var $panel = $('#theme-tokens-preview-panel');
-        var isHidden = $panel.attr('hidden') !== undefined;
-        if (isHidden) {
-          $panel.removeAttr('hidden');
-          $(this).text(Backdrop.t('Hide preview'));
+      // Collapse all / Expand all toggle.
+      $('#theme-tokens-collapse-all', context).once('theme-tokens-collapse').on('click', function () {
+        var $button = $(this);
+        var $fieldsets = $('fieldset.collapsible', context);
+        var allCollapsed = $fieldsets.filter(':not(.collapsed)').length === 0;
+
+        if (allCollapsed) {
+          // Expand all — click any collapsed fieldset legends.
+          $fieldsets.filter('.collapsed').find('> legend a').trigger('click');
+          $button.text(Backdrop.t('Collapse all'));
         }
         else {
-          $panel.attr('hidden', '');
-          $(this).text(Backdrop.t('Show preview'));
+          // Collapse all — click any expanded fieldset legends.
+          $fieldsets.filter(':not(.collapsed)').find('> legend a').trigger('click');
+          $button.text(Backdrop.t('Expand all'));
         }
+      });
+
+      // Preview panel toggle.
+      $('#theme-tokens-preview-toggle', context).once('theme-tokens-toggle').on('click', function () {
+        Backdrop.themeTokens.togglePreview();
       });
 
       // Close button inside the panel.
       $('#theme-tokens-preview-close', context).once('theme-tokens-close').on('click', function () {
-        $('#theme-tokens-preview-panel').attr('hidden', '');
-        $('#theme-tokens-preview-toggle').text(Backdrop.t('Show preview'));
+        Backdrop.themeTokens.closePreview();
       });
 
       // Scheme selector — populate all token fields when a preset is chosen.
@@ -53,6 +61,44 @@
    * Shared Theme Tokens preview utilities.
    */
   Backdrop.themeTokens = Backdrop.themeTokens || {
+
+    /**
+     * Opens the preview panel, positioning it below the Backdrop toolbar.
+     */
+    openPreview: function () {
+      var $panel = $('#theme-tokens-preview-panel');
+      var $toggle = $('#theme-tokens-preview-toggle');
+
+      // Position panel below the Backdrop admin toolbar.
+      var toolbarHeight = $('#toolbar').outerHeight() || 0;
+      $panel.css('top', toolbarHeight + 'px');
+
+      $panel.removeAttr('hidden');
+      $toggle.text(Backdrop.t('Hide preview'));
+      $('body').addClass('theme-tokens-preview-open');
+    },
+
+    /**
+     * Closes the preview panel.
+     */
+    closePreview: function () {
+      $('#theme-tokens-preview-panel').attr('hidden', '');
+      $('#theme-tokens-preview-toggle').text(Backdrop.t('Show preview'));
+      $('body').removeClass('theme-tokens-preview-open');
+    },
+
+    /**
+     * Toggles the preview panel open or closed.
+     */
+    togglePreview: function () {
+      var isHidden = $('#theme-tokens-preview-panel').attr('hidden') !== undefined;
+      if (isHidden) {
+        Backdrop.themeTokens.openPreview();
+      }
+      else {
+        Backdrop.themeTokens.closePreview();
+      }
+    },
 
     /**
      * Initializes the preview iframe — replays all current values on load.

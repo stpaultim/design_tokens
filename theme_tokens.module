@@ -203,7 +203,24 @@ function theme_tokens_load_info($theme_name) {
   $info = array();
   include $tokens_file;
 
+  // Call module alter hooks and the active theme's alter (if any).
   backdrop_alter('theme_tokens_info', $info, $theme_name);
+
+  // If the target theme is not the currently active theme (e.g., when viewing
+  // the admin UI under a different admin theme), backdrop_alter() will not
+  // have called the target theme's implementation. Include its template.php
+  // and call the function directly.
+  global $theme;
+  if ($theme !== $theme_name) {
+    $template_file = BACKDROP_ROOT . '/' . $theme_path . '/template.php';
+    if (file_exists($template_file)) {
+      include_once $template_file;
+    }
+    $alter_function = $theme_name . '_theme_tokens_info_alter';
+    if (function_exists($alter_function)) {
+      $alter_function($info, $theme_name);
+    }
+  }
 
   $cache[$theme_name] = $info;
   return $info;

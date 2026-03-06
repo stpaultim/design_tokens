@@ -52,6 +52,13 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
 
   $form['#theme_name'] = $theme_name;
 
+  // Collapse/expand all toggle button.
+  $form['collapse_toggle'] = array(
+    '#type' => 'markup',
+    '#markup' => '<button type="button" id="theme-tokens-collapse-all" class="button">' . t('Collapse all') . '</button>',
+    '#weight' => -200,
+  );
+
   // Preset scheme selector.
   if (!empty($schemes)) {
     $scheme_options = array('' => t('— Custom —'));
@@ -100,7 +107,8 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
     }
   }
 
-  // Render grouped tokens as fieldsets.
+  // Render grouped tokens as fieldsets. First group is expanded; rest collapsed.
+  $first_group = TRUE;
   foreach ($groups as $group_key => $group_label) {
     if (empty($grouped[$group_key])) {
       continue;
@@ -110,8 +118,9 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
       '#type' => 'fieldset',
       '#title' => $group_label,
       '#collapsible' => TRUE,
-      '#collapsed' => FALSE,
+      '#collapsed' => !$first_group,
     );
+    $first_group = FALSE;
 
     foreach ($grouped[$group_key] as $token_name => $token) {
       $form[$group_key][$token_name] = theme_tokens_build_field(
@@ -126,7 +135,7 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
       '#type' => 'fieldset',
       '#title' => t('Other'),
       '#collapsible' => TRUE,
-      '#collapsed' => FALSE,
+      '#collapsed' => TRUE,
     );
     foreach ($ungrouped as $token_name => $token) {
       $form['ungrouped'][$token_name] = theme_tokens_build_field(
