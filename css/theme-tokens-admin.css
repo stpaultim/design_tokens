@@ -3,7 +3,11 @@
  * Shared admin UI styles for Theme Tokens.
  */
 
-/* Preview toggle button. */
+/* Collapse all / Show preview buttons. */
+#theme-tokens-collapse-all {
+  margin-right: 0.75rem;
+}
+
 #theme-tokens-preview-toggle {
   margin-bottom: 1.5rem;
 }

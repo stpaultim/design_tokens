@@ -53,7 +53,7 @@
       });
 
       // Initialize live preview iframe.
-      Backdrop.themeTokens.initPreview(context);
+      Backdrop.themeTokens.initPreview(context, settings);
     }
   };
 
@@ -101,27 +101,61 @@
     },
 
     /**
-     * Initializes the preview iframe — replays all current values on load.
+     * Initializes the preview iframe — replays all current token values on load,
+     * including loading any Google Fonts needed by font tokens.
      */
-    initPreview: function (context) {
+    initPreview: function (context, settings) {
       var $iframe = $('#theme-tokens-preview-iframe', context);
       if (!$iframe.length) {
         return;
       }
 
+      // Build Google Fonts map from font module settings if available.
+      var googleFontsMap = Backdrop.themeTokens.buildGoogleFontsMap(settings);
+
       $iframe.on('load', function () {
         $('[data-token-name]').each(function () {
           var $field = $(this);
-          Backdrop.themeTokens.updatePreview($field.data('token-name'), $field.val());
+          var tokenName = $field.data('token-name');
+          var value = $field.val();
+          Backdrop.themeTokens.updatePreview(tokenName, value);
+
+          // For font tokens, also ensure the Google Font is loaded in the iframe.
+          if (value && googleFontsMap[value]) {
+            Backdrop.themeTokens.loadFontInPreview(googleFontsMap[value]);
+          }
         });
       });
     },
 
     /**
-     * Sends a token update to the preview iframe via postMessage.
+     * Builds a flat map of CSS font-family value → Google Fonts spec from
+     * the themeTokensFont settings provided by the font sub-module.
      *
-     * @param {string} tokenName  Token name (without --).
-     * @param {string} value      New value.
+     * @param {object} settings  Backdrop.settings passed from attach().
+     * @return {object}
+     */
+    buildGoogleFontsMap: function (settings) {
+      var map = {};
+      var s = settings && settings.themeTokensFont;
+      if (!s || !s.presets) {
+        return map;
+      }
+      $.each(s.presets, function (i, group) {
+        $.each(group.fonts, function (j, font) {
+          if (font.google_font) {
+            map[font.value] = font.google_font;
+          }
+        });
+      });
+      return map;
+    },
+
+    /**
+     * Sends a token value update to the preview iframe via postMessage.
+     *
+     * @param {string} tokenName  Token name without leading --.
+     * @param {string} value      New CSS value.
      */
     updatePreview: function (tokenName, value) {
       var $iframe = $('#theme-tokens-preview-iframe');
@@ -132,6 +166,22 @@
         type: 'themeTokensUpdate',
         token: '--' + tokenName,
         value: value
+      }, window.location.origin);
+    },
+
+    /**
+     * Sends a Google Font load request to the preview iframe via postMessage.
+     *
+     * @param {string} googleFontSpec  Google Fonts CSS2 API family spec.
+     */
+    loadFontInPreview: function (googleFontSpec) {
+      var $iframe = $('#theme-tokens-preview-iframe');
+      if (!$iframe.length || !$iframe[0].contentWindow) {
+        return;
+      }
+      $iframe[0].contentWindow.postMessage({
+        type: 'themeTokensLoadFont',
+        googleFont: googleFontSpec
       }, window.location.origin);
     }
   };

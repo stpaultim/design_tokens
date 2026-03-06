@@ -107,7 +107,8 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
     }
   }
 
-  // Render grouped tokens as fieldsets. First group is expanded; rest collapsed.
+  // Render grouped tokens as fieldsets. First group is expanded and floated
+  // above the preset scheme selector via a negative weight; rest are collapsed.
   $first_group = TRUE;
   foreach ($groups as $group_key => $group_label) {
     if (empty($grouped[$group_key])) {
@@ -119,6 +120,7 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
       '#title' => $group_label,
       '#collapsible' => TRUE,
       '#collapsed' => !$first_group,
+      '#weight' => $first_group ? -10 : 0,
     );
     $first_group = FALSE;
 

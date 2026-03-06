@@ -1,0 +1,211 @@
+<?php
+/**
+ * @file
+ * Theme Tokens: Font sub-module.
+ *
+ * Registers the 'font' token type with the Theme Tokens system and provides
+ * a font family selection field with preset stacks and live preview.
+ * Google Fonts are loaded dynamically based on which fonts are actually in use.
+ */
+
+/**
+ * Implements hook_theme_tokens_types().
+ */
+function theme_tokens_font_theme_tokens_types() {
+  return array(
+    'font' => array(
+      'label'          => t('Font'),
+      'field callback' => 'theme_tokens_font_build_field',
+    ),
+  );
+}
+
+/**
+ * Returns grouped font preset stacks.
+ *
+ * Each Google Font entry includes a 'google_font' key containing the Google
+ * Fonts CSS2 API family spec (e.g. "Merriweather:ital,wght@0,300;0,400;0,700").
+ * This is used both to load the font on the front end and for admin preview.
+ *
+ * @return array
+ */
+function theme_tokens_font_get_presets() {
+  return array(
+    array(
+      'label' => t('Serif'),
+      'fonts' => array(
+        array(
+          'value'       => "'Merriweather', Georgia, serif",
+          'label'       => 'Merriweather',
+          'google_font' => 'Merriweather:ital,wght@0,300;0,400;0,700;1,400',
+        ),
+        array(
+          'value'       => "'Playfair Display', Georgia, serif",
+          'label'       => 'Playfair Display',
+          'google_font' => 'Playfair+Display:ital,wght@0,400;0,700;1,400',
+        ),
+        array(
+          'value'       => "'Lora', Georgia, serif",
+          'label'       => 'Lora',
+          'google_font' => 'Lora:ital,wght@0,400;0,700;1,400',
+        ),
+        array(
+          'value' => "Georgia, 'Times New Roman', serif",
+          'label' => 'Georgia',
+        ),
+      ),
+    ),
+    array(
+      'label' => t('Sans-serif'),
+      'fonts' => array(
+        array(
+          'value'       => "'Lato', 'Helvetica Neue', Arial, sans-serif",
+          'label'       => 'Lato',
+          'google_font' => 'Lato:wght@300;400;700;900',
+        ),
+        array(
+          'value'       => "'Open Sans', 'Helvetica Neue', Arial, sans-serif",
+          'label'       => 'Open Sans',
+          'google_font' => 'Open+Sans:wght@300;400;600;700',
+        ),
+        array(
+          'value'       => "'Roboto', 'Helvetica Neue', Arial, sans-serif",
+          'label'       => 'Roboto',
+          'google_font' => 'Roboto:wght@300;400;500;700',
+        ),
+        array(
+          'value'       => "'Nunito', 'Helvetica Neue', Arial, sans-serif",
+          'label'       => 'Nunito',
+          'google_font' => 'Nunito:wght@300;400;600;700',
+        ),
+        array(
+          'value'       => "'Source Sans Pro', 'Helvetica Neue', Arial, sans-serif",
+          'label'       => 'Source Sans Pro',
+          'google_font' => 'Source+Sans+Pro:wght@300;400;600;700',
+        ),
+        array(
+          'value' => "'Helvetica Neue', Arial, Helvetica, sans-serif",
+          'label' => 'Helvetica',
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * Returns a flat map of CSS font-family value → Google Fonts API family spec.
+ *
+ * @return array
+ *   Keyed by CSS font-family value string.
+ */
+function theme_tokens_font_get_google_fonts_map() {
+  $map = array();
+  foreach (theme_tokens_font_get_presets() as $group) {
+    foreach ($group['fonts'] as $font) {
+      if (!empty($font['google_font'])) {
+        $map[$font['value']] = $font['google_font'];
+      }
+    }
+  }
+  return $map;
+}
+
+/**
+ * Implements hook_preprocess_html().
+ *
+ * Loads Google Fonts stylesheets for any font tokens that use a Google Font,
+ * combining them into a single request where possible.
+ */
+function theme_tokens_font_preprocess_html(&$variables) {
+  global $theme;
+
+  $info = theme_tokens_load_info($theme);
+  if (empty($info['tokens'])) {
+    return;
+  }
+
+  // Only act on font-type tokens.
+  $font_token_names = array();
+  foreach ($info['tokens'] as $token_name => $token) {
+    if (isset($token['type']) && $token['type'] === 'font') {
+      $font_token_names[] = $token_name;
+    }
+  }
+  if (empty($font_token_names)) {
+    return;
+  }
+
+  $values = theme_tokens_get_values($theme);
+  $google_fonts_map = theme_tokens_font_get_google_fonts_map();
+
+  $family_specs = array();
+  foreach ($font_token_names as $token_name) {
+    $value = isset($values[$token_name]) ? $values[$token_name] : '';
+    if ($value && isset($google_fonts_map[$value])) {
+      $spec = $google_fonts_map[$value];
+      if (!in_array($spec, $family_specs)) {
+        $family_specs[] = $spec;
+      }
+    }
+  }
+
+  if (empty($family_specs)) {
+    return;
+  }
+
+  // Build a single Google Fonts request for all needed fonts.
+  $query = 'family=' . implode('&family=', $family_specs) . '&display=swap';
+  $url = 'https://fonts.googleapis.com/css2?' . $query;
+
+  backdrop_add_html_head_link(array('rel' => 'preconnect', 'href' => 'https://fonts.googleapis.com'));
+  backdrop_add_html_head_link(array('rel' => 'preconnect', 'href' => 'https://fonts.gstatic.com', 'crossorigin' => ''));
+  backdrop_add_html_head_link(array('rel' => 'stylesheet', 'href' => $url));
+}
+
+/**
+ * Field callback for the 'font' token type.
+ */
+function theme_tokens_font_build_field($token_name, array $token, array $current_values) {
+  $value = isset($current_values[$token_name]) ? $current_values[$token_name] : '';
+
+  $element = array(
+    '#type' => 'textfield',
+    '#title' => isset($token['label']) ? $token['label'] : $token_name,
+    '#default_value' => $value,
+    '#size' => 55,
+    '#maxlength' => 255,
+    '#description' => t('Enter a CSS font-family value, or choose a preset above.'),
+    '#attributes' => array(
+      'class' => array('theme-tokens-font-field'),
+      'data-token-name' => $token_name,
+    ),
+    '#attached' => array(
+      'js' => array(
+        backdrop_get_path('module', 'theme_tokens_font') . '/js/theme-tokens-font.js',
+      ),
+      'css' => array(
+        backdrop_get_path('module', 'theme_tokens_font') . '/css/theme-tokens-font.css',
+      ),
+    ),
+  );
+
+  // Attach JS settings only once per page. Backdrop merges numerically-indexed
+  // arrays by concatenation, so attaching twice doubles the dropdown options.
+  $settings_attached = &backdrop_static(__FUNCTION__, FALSE);
+  if (!$settings_attached) {
+    $element['#attached']['js'][] = array(
+      'type' => 'setting',
+      'data' => array(
+        'themeTokensFont' => array(
+          'presets'     => theme_tokens_font_get_presets(),
+          'selectLabel' => t('— Choose a font —'),
+          'customLabel' => t('Other'),
+          'previewText' => t('The quick brown fox jumps over the lazy dog.'),
+        ),
+      ),
+    );
+    $settings_attached = TRUE;
+  }
+
+  return $element;
+}
