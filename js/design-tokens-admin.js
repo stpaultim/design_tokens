@@ -34,6 +34,10 @@
       });
 
       // Scheme selector — populate all token fields when a preset is chosen.
+      // A flag prevents the field-change listener below from immediately
+      // resetting the selector back to Custom during scheme application.
+      var applyingScheme = false;
+
       $('#design-tokens-scheme-select', context).once('design-tokens-scheme').on('change', function () {
         var scheme_key = $(this).val();
         if (!scheme_key) {
@@ -44,12 +48,24 @@
         if (!scheme || !scheme.tokens) {
           return;
         }
+        applyingScheme = true;
         $.each(scheme.tokens, function (token_name, value) {
           var $field = $('[data-token-name="' + token_name + '"]');
           if ($field.length) {
             $field.val(value).trigger('change');
           }
         });
+        // Clear the flag after all triggered change events have fired.
+        setTimeout(function () { applyingScheme = false; }, 0);
+      });
+
+      // Reset the scheme selector to Custom when any field is manually edited.
+      // This ensures the selector accurately reflects whether the current values
+      // match a preset or have been customised.
+      $(document, context).once('design-tokens-field-watch').on('input change', '[data-token-name]', function () {
+        if (!applyingScheme) {
+          $('#design-tokens-scheme-select').val('');
+        }
       });
 
       // Initialize live preview iframe.

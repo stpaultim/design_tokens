@@ -167,10 +167,16 @@ function _design_tokens_utility_color_rules($token_name, $css_var, array $all_to
     $rules[] = $class . " .block-title {\n  color: var(--" . $text_token . ");\n}";
   }
 
-  // Links within the wrapper.
-  if ($has_link) {
-    $rules[] = $class . " a {\n  color: var(--" . $link_token . ");\n}";
-  }
+  // Links within the wrapper — including visited and hover states so the
+  // sitewide a:visited and a:hover rules never override link colors in
+  // colored regions. Falls back to --link-color-inverted when no explicit
+  // link token is defined for this color set.
+  $link_value = $has_link
+    ? "var(--" . $link_token . ")"
+    : "var(--link-color-inverted, #f0e6b8)";
+
+  $rules[] = $class . " a,\n" . $class . " a:visited {\n  color: " . $link_value . ";\n}";
+  $rules[] = $class . " a:hover,\n" . $class . " a:focus {\n  color: " . $link_value . ";\n}";
 
   return $rules;
 }

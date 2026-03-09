@@ -78,7 +78,7 @@ function design_tokens_settings_form($form, &$form_state, $theme_name) {
       '#type' => 'select',
       '#title' => t('Preset scheme'),
       '#options' => $scheme_options,
-      '#default_value' => '',
+      '#default_value' => design_tokens_get_scheme($theme_name),
       '#attributes' => array('id' => 'design-tokens-scheme-select'),
       '#attached' => array(
         'js' => array(
@@ -203,6 +203,14 @@ function design_tokens_settings_form($form, &$form_state, $theme_name) {
   $form['#attached']['js'][] = backdrop_get_path('module', 'design_tokens') . '/js/design-tokens-admin.js';
   $form['#attached']['css'][] = backdrop_get_path('module', 'design_tokens') . '/css/design-tokens-admin.css';
 
+  // Auto-load a theme-specific admin JS file if the theme provides one.
+  // Themes can create js/design-tokens-theme.js to customize preview behavior
+  // for computed or derived CSS properties (e.g. auto-calculated text colors).
+  $theme_js = backdrop_get_path('theme', $theme_name) . '/js/design-tokens-theme.js';
+  if (file_exists(BACKDROP_ROOT . '/' . $theme_js)) {
+    $form['#attached']['js'][] = $theme_js;
+  }
+
   return $form;
 }
 
@@ -247,6 +255,7 @@ function design_tokens_settings_form_submit($form, &$form_state) {
   $theme_name = $form['#theme_name'];
   $info = design_tokens_load_info($theme_name);
   $tokens = isset($info['tokens']) ? $info['tokens'] : array();
+  $schemes = isset($info['schemes']) ? $info['schemes'] : array();
 
   $values = array();
   foreach ($tokens as $token_name => $token) {
@@ -260,6 +269,22 @@ function design_tokens_settings_form_submit($form, &$form_state) {
   }
 
   design_tokens_save_values($theme_name, $values);
+
+  // Determine the active scheme to save. Start with the selector value, then
+  // verify by comparing submitted token values against the scheme definition.
+  // If any token differs from the scheme, the values are Custom — even if the
+  // JS did not reset the selector (e.g. due to a page quirk or manual typing).
+  $scheme = isset($form_state['values']['scheme']) ? $form_state['values']['scheme'] : '';
+  if ($scheme && isset($schemes[$scheme]['tokens'])) {
+    foreach ($schemes[$scheme]['tokens'] as $token_name => $scheme_value) {
+      if (isset($values[$token_name]) && $values[$token_name] !== $scheme_value) {
+        $scheme = '';
+        break;
+      }
+    }
+  }
+  design_tokens_save_scheme($theme_name, $scheme);
+
   backdrop_set_message(t('Token settings saved.'));
 }
 
@@ -269,5 +294,6 @@ function design_tokens_settings_form_submit($form, &$form_state) {
 function design_tokens_settings_form_reset($form, &$form_state) {
   $theme_name = $form['#theme_name'];
   design_tokens_save_values($theme_name, array());
+  design_tokens_save_scheme($theme_name, '');
   backdrop_set_message(t('Token settings reset to defaults.'));
 }

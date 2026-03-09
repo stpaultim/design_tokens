@@ -295,3 +295,31 @@ function design_tokens_save_values($theme_name, array $values) {
   $config->set('tokens', $values);
   $config->save();
 }
+
+/**
+ * Saves the active preset scheme name for a theme.
+ *
+ * @param string $theme_name
+ *   The machine name of the theme.
+ * @param string $scheme
+ *   The scheme key (e.g. 'plume'), or empty string for custom/no scheme.
+ */
+function design_tokens_save_scheme($theme_name, $scheme) {
+  $config = config('theme.tokens.' . $theme_name);
+  $config->set('scheme', $scheme);
+  $config->save();
+}
+
+/**
+ * Returns the saved active preset scheme key for a theme.
+ *
+ * @param string $theme_name
+ *   The machine name of the theme.
+ *
+ * @return string
+ *   The saved scheme key, or empty string if none saved.
+ */
+function design_tokens_get_scheme($theme_name) {
+  $scheme = config('theme.tokens.' . $theme_name)->get('scheme');
+  return is_string($scheme) ? $scheme : '';
+}
