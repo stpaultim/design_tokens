@@ -1,71 +1,75 @@
 # Design Tokens
 
 Design Tokens is a Backdrop CMS module that provides a modern, flexible approach to theme
-configuration using CSS custom properties (CSS variables). It lets themes declare the design
-tokens they support — colors, fonts, spacing, and more — and gives site administrators a
-clean UI to configure those values without writing any CSS.
+configuration using CSS custom properties (CSS variables). Themes declare the design tokens
+they support — colors, fonts, border radius, button styles, and more — and site architects
+configure those values through a clean admin UI without writing any CSS.
 
-This module is intended as a replacement for the Color module, which predates CSS custom
-properties and works by doing fragile string replacement on CSS files. Design Tokens stores
-values in Backdrop config, injects a single `:root {}` block in `<head>`, and never rewrites
-any files.
+This module is a replacement for the Color module, which predates CSS custom properties and
+works by doing fragile string replacement on CSS files. Design Tokens stores values in
+Backdrop config, injects a single `:root {}` block in `<head>`, and never rewrites any files.
 
-# Status
+## Status
 
-Design Tokens is under active development. The core infrastructure (token discovery, config
-storage, CSS injection, admin UI, live preview) is in place. The color sub-module is
-functional. It is not too early to test it, file bug reports, and provide feedback.
+Design Tokens is functional and actively used with the Opera theme as the reference
+implementation. The core infrastructure, color sub-module, font sub-module, and utility
+sub-module are all complete. It is not too early to test it, file bug reports, and provide
+feedback.
 
-# Who is this module for?
+## Who is this module for?
 
-Design Tokens is for theme developers who want to give their users meaningful, well-organized
-customization options that go beyond the Color module — and for site administrators who want
-to configure a site's look and feel through the UI without custom CSS.
+**Theme developers** who want to give site architects meaningful, well-organized customization
+options without the Color module's limitations.
 
-It is designed as an infrastructure module. Themes declare what they support; the module
-handles the rest.
+**Site architects** who want to configure a site's look and feel through the admin UI — colors,
+fonts, button styles, link behavior — without custom CSS.
 
-# How it works
+It is an infrastructure module. Themes declare what they support; the module handles the rest.
+
+## How it works
 
 1. A theme places a `tokens.inc` file in its root directory declaring the tokens it supports.
 2. Design Tokens discovers the file and loads the token definitions.
-3. Sub-modules register token types (e.g. `design_tokens_color`) and provide the field UI
-   for editing them.
-4. A site administrator visits **Appearance > Design Tokens** and configures values through
-   the admin UI, with a live preview of the site alongside the form.
+3. Sub-modules register token types (e.g. `design_tokens_color`) and provide the field UI.
+4. A site architect visits **Appearance > Design Tokens** and configures values with a live
+   preview of the site alongside the form.
 5. Values are stored in Backdrop config: `theme.tokens.THEMENAME.json`
 6. On every page, Design Tokens injects a `<style>` block into `<head>`:
 
 ```html
-<style>:root { --color-primary: #6e0e0a; --font-heading: Merriweather, serif; }</style>
+<style>:root { --color-primary: #6e0e0a; --font-heading: 'Merriweather', serif; }</style>
 ```
 
-The theme's CSS uses `var(--color-primary)` and friends. No CSS files are ever rewritten.
+The theme's CSS uses `var(--color-primary)` and similar references. No CSS files are
+ever rewritten.
 
-# Module structure
+## Module structure
 
-Design Tokens uses a parent + sub-module architecture. The parent module provides shared
+Design Tokens uses a parent + sub-module architecture. The parent provides shared
 infrastructure. Sub-modules add support for specific token types. Sites enable only what
 they need.
 
 ```
 design_tokens/               Infrastructure: token loading, CSS injection, admin UI, config
   modules/
-    design_tokens_color/     Color token type — color pickers, preset scheme selection
-    design_tokens_font/      Font token type — font selectors, stacks (planned)
+    design_tokens_color/     Color tokens — color pickers, contrast ratio badges, schemes
+    design_tokens_font/      Font tokens — font family selectors, Google Fonts integration
+    design_tokens_utility/   Utility CSS — generates classes like .dt-bg-primary for use
+                             in the layout editor; includes admin reference page
 ```
 
-A site that wants only color control enables `design_tokens` and `design_tokens_color`. A site
-that wants both color and font control enables all three. Third-party developers can add new
-token types as additional sub-modules without touching the parent.
+A site wanting only color control enables `design_tokens` + `design_tokens_color`. A site
+wanting color, fonts, and utility classes enables all four. Third-party developers can add
+new token types as additional sub-modules without touching the parent.
 
-# Adding Design Tokens support to a theme
+## Adding Design Tokens support to a theme
 
 Place a `tokens.inc` file in your theme's root directory. The module detects it automatically.
 
 ```php
 <?php
 $info = array(
+  // Static CSS file to remove when Design Tokens is active (prevents duplicate variables).
   'variables_file' => 'css/my-theme-variables.css',
 
   'groups' => array(
@@ -75,15 +79,16 @@ $info = array(
 
   'tokens' => array(
     'color-primary' => array(
-      'label'   => t('Primary background'),
-      'type'    => 'color',
+      'label'   => t('Background'),
+      'type'    => 'color',       // Provided by design_tokens_color
       'default' => '#6e0e0a',
       'group'   => 'header',
+      'utility' => TRUE,          // Generate a .dt-bg-primary utility class
     ),
     'font-heading' => array(
       'label'   => t('Heading font'),
-      'type'    => 'font',
-      'default' => 'Merriweather, Georgia, serif',
+      'type'    => 'font',        // Provided by design_tokens_font
+      'default' => "'Merriweather', Georgia, serif",
       'group'   => 'typography',
     ),
   ),
@@ -93,38 +98,68 @@ $info = array(
       'title'  => t('Default'),
       'tokens' => array(
         'color-primary' => '#6e0e0a',
-        'font-heading'  => 'Merriweather, Georgia, serif',
       ),
     ),
   ),
 );
 ```
 
-The `variables_file` key tells Design Tokens which static CSS file to remove from the page
-and replace with the injected `:root {}` block. This prevents duplicate variable definitions.
+### Token keys
 
-Token `type` values must match a type registered by an enabled sub-module. If the sub-module
-for a type is not enabled, that token is silently skipped — the form simply won't show a
-field for it, and its default value is still injected.
+| Key | Required | Description |
+|---|---|---|
+| `label` | Yes | Human-readable label shown in the admin UI |
+| `type` | Yes | Token type (`color`, `font`, `text`). Unknown types show a plain text field. |
+| `default` | Yes | Default CSS value used before any config is saved |
+| `group` | No | Groups the token under a collapsible fieldset |
+| `utility` | No | If `TRUE`, `design_tokens_utility` generates a utility CSS class for this token |
 
-# Admin UI
+### Preset schemes
 
-- **Appearance > Design Tokens** — overview of all themes with token support
-- **Appearance > Design Tokens > [Theme name]** — configure tokens for a specific theme
+Schemes are named sets of token values. When a scheme is selected in the admin UI, all
+fields populate at once. The selected scheme name is saved to config and pre-selected on
+the next visit. If any token value is changed after a scheme is applied, the selector
+automatically shows "Custom" — verified server-side on save.
 
-The settings page shows tokens organized by group, a preset scheme selector at the top, and
-a live preview of the front page alongside the form. Changes are reflected in the preview
-in real time without a page reload.
+### Utility classes
 
-# Goals
+When `design_tokens_utility` is enabled, tokens with `'utility' => TRUE` generate CSS
+classes that site architects can apply to blocks in the layout editor's CSS class field:
 
-- Provide a clean, config-based replacement for the Color module
-- Support any token type (colors, fonts, spacing, border radius, etc.) through sub-modules
-- Live preview with no server round-trips, using `postMessage`
+- **Color tokens** — `.dt-bg-{slug}` sets background, text, and link color together
+- **Font tokens** — `.dt-font-{slug}` (all text) and `.dt-title-{slug}` (block title only)
+
+The reference page at **Appearance > Design Tokens > [Theme] > Utility Classes** shows all
+available classes with live color swatches.
+
+## Admin UI
+
+| Path | Purpose |
+|---|---|
+| `admin/appearance/tokens` | Overview — all themes with token support |
+| `admin/appearance/tokens/[theme]` | Configure tokens for a specific theme |
+| `admin/appearance/tokens/[theme]/utilities` | Utility class reference page |
+
+The settings page shows tokens organized by group, a preset scheme selector, WCAG contrast
+ratio badges on color pairs, and a live preview of the front page. Changes reflect in the
+preview instantly via `postMessage` — no page reload required.
+
+## Theme-specific admin preview JS
+
+If a theme provides `js/design-tokens-theme.js`, Design Tokens automatically loads it on
+the token settings admin page. This allows themes to extend the live preview with logic
+that can't be handled by token injection alone — for example, computed CSS properties
+derived from token values at PHP render time.
+
+## Goals
+
+- Config-based replacement for the Color module
+- Support any token type through sub-modules
+- Live preview with no server round-trips
 - Exportable, deployable, version-controllable config
-- Opera is the reference implementation and primary test case
+- Accessible by default — WCAG contrast checking built in
 
-# Reference implementation
+## Reference implementation
 
 The [Opera theme](https://github.com/backdrop-contrib/opera) is the first theme to support
 Design Tokens and serves as the reference implementation during development.
@@ -132,15 +167,16 @@ Design Tokens and serves as the reference implementation during development.
 Notes About Use of AI
 ---------------------
 
-This module was developed with significant assistance from AI tools (specifically Claude by Anthropic). AI was used to generate code, plan features, and make iterative improvements throughout development. We welcome feedback.
+This module was developed with significant assistance from AI tools (specifically Claude by
+Anthropic). AI was used to generate code, plan features, and make iterative improvements
+throughout development. We welcome feedback.
 
 Pull requests and issue reports are welcome.
 
 LICENSE
 ---------------
 
-This project is GPL v2 software. See the LICENSE.txt file in this directory
-for complete text.
+This project is GPL v2 software. See the LICENSE.txt file in this directory for complete text.
 
 CURRENT MAINTAINERS
 ---------------
