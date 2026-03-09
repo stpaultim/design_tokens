@@ -20,6 +20,29 @@ function design_tokens_color_design_tokens_types() {
 }
 
 /**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Adds a collapsible contrast ratio explanation to the Design Tokens settings
+ * form when the color sub-module is active.
+ */
+function design_tokens_color_form_design_tokens_settings_form_alter(&$form, &$form_state) {
+  $form['contrast_help'] = array(
+    '#markup' => '<details class="dt-contrast-help">'
+      . '<summary>' . t('About the contrast ratings') . '</summary>'
+      . '<p>' . t('The colored badges next to each text color show how readable that color is against its paired background — an accessibility check for people with low vision or color blindness.') . '</p>'
+      . '<ul>'
+      . '<li><strong>' . t('AAA (7:1 or higher)') . '</strong> — ' . t('Excellent contrast. Exceeds the highest accessibility standard. Ideal for all text.') . '</li>'
+      . '<li><strong>' . t('AA (4.5:1 or higher)') . '</strong> — ' . t('Good contrast. Meets the standard for normal body text. Aim for this at minimum.') . '</li>'
+      . '<li><strong>' . t('AA Large (3:1 to 4.5:1)') . '</strong> — ' . t('Marginal contrast. Acceptable only for large text (18pt or larger) or bold text (14pt or larger). Not suitable for body text.') . '</li>'
+      . '<li><strong>' . t('Fail (below 3:1)') . '</strong> — ' . t('Insufficient contrast. Text will be difficult or impossible to read for some people. This color combination should be changed.') . '</li>'
+      . '</ul>'
+      . '<p>' . t('These ratings follow the WCAG 2.1 contrast guidelines. The ratio compares the brightness of the text color to the brightness of the background.') . '</p>'
+      . '</details>',
+    '#weight' => -48,
+  );
+}
+
+/**
  * Field callback for the 'color' token type.
  *
  * Builds a hex text field enhanced by JS with a native browser color picker.

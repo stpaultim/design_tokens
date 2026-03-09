@@ -1,0 +1,7 @@
+name = Design Tokens Utility
+description = Generates CSS utility classes from token definitions, letting site architects style individual blocks by adding a class in the layout editor.
+type = module
+backdrop = 1.x
+package = Design Tokens
+
+dependencies[] = design_tokens

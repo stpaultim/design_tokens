@@ -1,0 +1,201 @@
+<?php
+/**
+ * @file
+ * Design Tokens Utility: generates CSS utility classes from token definitions.
+ *
+ * Allows site architects to apply token-based styling to individual blocks by
+ * adding a class name in the layout editor's CSS class field.
+ *
+ * For color tokens with 'utility' => TRUE, generates a .dt-bg-{slug} class
+ * that sets background, text, and link colors together using the token triplet.
+ *
+ * For font tokens with 'utility' => TRUE, generates:
+ * - .dt-font-{slug}: applies the font family to all text within the block.
+ * - .dt-title-{slug}: applies the font family to .block-title within the block.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function design_tokens_utility_menu() {
+  $items = array();
+
+  $items['admin/appearance/tokens/%/utilities'] = array(
+    'title' => 'Utility Class Reference',
+    'page callback' => 'design_tokens_utility_reference_page',
+    'page arguments' => array(3),
+    'access arguments' => array('administer design tokens'),
+    'file' => 'design_tokens_utility.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Adds a link to the utility class reference page on the token settings form.
+ */
+function design_tokens_utility_form_design_tokens_settings_form_alter(&$form, &$form_state) {
+  $theme_name = $form_state['build_info']['args'][0];
+  $reference_url = 'admin/appearance/tokens/' . $theme_name . '/utilities';
+
+  $form['utility_reference_link'] = array(
+    '#markup' => '<p>' . l(t('View available utility classes for this theme'), $reference_url) . '</p>',
+    '#weight' => -49,
+  );
+}
+
+/**
+ * Implements hook_css_alter().
+ *
+ * Injects utility CSS classes derived from token definitions with 'utility' => TRUE.
+ */
+function design_tokens_utility_css_alter(&$css) {
+  global $theme;
+
+  if (!$theme) {
+    return;
+  }
+
+  $supported = design_tokens_get_supported_themes();
+  if (!isset($supported[$theme])) {
+    return;
+  }
+
+  $css_output = design_tokens_utility_generate_css($theme);
+  if (empty($css_output)) {
+    return;
+  }
+
+  $css['design_tokens_utility_classes'] = array(
+    'data'       => $css_output,
+    'type'       => 'inline',
+    'group'      => CSS_THEME,
+    'weight'     => -90,
+    'every_page' => TRUE,
+    'media'      => 'all',
+    'preprocess' => FALSE,
+    'browsers'   => array('IE' => TRUE, '!IE' => TRUE),
+  );
+}
+
+/**
+ * Generates utility CSS rules for a theme's tokens.
+ *
+ * Iterates over all tokens in the theme's tokens.inc. Only tokens with
+ * 'utility' => TRUE produce utility classes.
+ *
+ * @param string $theme_name
+ *   The machine name of the theme.
+ *
+ * @return string
+ *   A CSS string of generated utility class rules, ready for inline injection.
+ */
+function design_tokens_utility_generate_css($theme_name) {
+  $info = design_tokens_load_info($theme_name);
+
+  if (empty($info['tokens'])) {
+    return '';
+  }
+
+  $tokens = $info['tokens'];
+  $rules = array();
+
+  foreach ($tokens as $token_name => $token) {
+    if (empty($token['utility'])) {
+      continue;
+    }
+
+    $type = isset($token['type']) ? $token['type'] : '';
+    $css_var = '--' . preg_replace('/[^a-zA-Z0-9_-]/', '', $token_name);
+
+    switch ($type) {
+      case 'color':
+        $rules = array_merge($rules, _design_tokens_utility_color_rules($token_name, $css_var, $tokens));
+        break;
+
+      case 'font':
+        $rules = array_merge($rules, _design_tokens_utility_font_rules($token_name, $css_var));
+        break;
+    }
+  }
+
+  return implode("\n\n", $rules);
+}
+
+/**
+ * Generates CSS rules for a color token utility class.
+ *
+ * Auto-discovers companion -text and -link tokens. Generates:
+ * - .dt-bg-{slug} with background + text color
+ * - .dt-bg-{slug} .block-title with text color
+ * - .dt-bg-{slug} a with link color
+ *
+ * @param string $token_name
+ *   The token name (e.g. 'color-primary').
+ * @param string $css_var
+ *   The CSS variable reference (e.g. '--color-primary').
+ * @param array $all_tokens
+ *   All token definitions from tokens.inc, used to find companion tokens.
+ *
+ * @return array
+ *   Array of CSS rule strings.
+ */
+function _design_tokens_utility_color_rules($token_name, $css_var, array $all_tokens) {
+  // Derive a short slug: 'color-primary' → 'primary', 'color-block-1' → 'block-1'.
+  $slug = preg_replace('/^color-/', '', $token_name);
+  $class = '.dt-bg-' . $slug;
+
+  $text_token = $token_name . '-text';
+  $link_token = $token_name . '-link';
+  $has_text = isset($all_tokens[$text_token]);
+  $has_link = isset($all_tokens[$link_token]);
+
+  $rules = array();
+
+  // Wrapper: background + auto-paired text color.
+  $props = array('  background-color: var(' . $css_var . ');');
+  if ($has_text) {
+    $props[] = '  color: var(--' . $text_token . ');';
+  }
+  $rules[] = $class . " {\n" . implode("\n", $props) . "\n}";
+
+  // Block title: ensure it inherits the paired text color.
+  if ($has_text) {
+    $rules[] = $class . " .block-title {\n  color: var(--" . $text_token . ");\n}";
+  }
+
+  // Links within the wrapper.
+  if ($has_link) {
+    $rules[] = $class . " a {\n  color: var(--" . $link_token . ");\n}";
+  }
+
+  return $rules;
+}
+
+/**
+ * Generates CSS rules for a font token utility class.
+ *
+ * Generates two classes:
+ * - .dt-font-{slug}: applies the font to all text within the block wrapper.
+ * - .dt-title-{slug}: applies the font only to .block-title within the block.
+ *
+ * @param string $token_name
+ *   The token name (e.g. 'font-heading').
+ * @param string $css_var
+ *   The CSS variable reference (e.g. '--font-heading').
+ *
+ * @return array
+ *   Array of CSS rule strings.
+ */
+function _design_tokens_utility_font_rules($token_name, $css_var) {
+  // Derive slug: 'font-heading' → 'heading'.
+  $slug = preg_replace('/^font-/', '', $token_name);
+
+  return array(
+    ".dt-font-{$slug} {\n  font-family: var({$css_var});\n}",
+    ".dt-title-{$slug} .block-title {\n  font-family: var({$css_var});\n}",
+  );
+}

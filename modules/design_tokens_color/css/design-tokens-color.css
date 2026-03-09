@@ -21,3 +21,73 @@
   margin-left: 0.4em;
   cursor: pointer;
 }
+
+/* Collapsible help block explaining contrast ratings. */
+.dt-contrast-help {
+  margin: 0.75em 0 1.25em;
+  padding: 0.6em 1em;
+  border: 1px solid #c9d7df;
+  border-radius: 4px;
+  background: #f5f9fc;
+  max-width: 42em;
+}
+
+.dt-contrast-help summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #1a5276;
+}
+
+.dt-contrast-help p,
+.dt-contrast-help ul {
+  margin: 0.5em 0 0;
+  font-size: 0.9rem;
+}
+
+.dt-contrast-help li {
+  margin: 0.3em 0;
+}
+
+/* Contrast ratio badge — appears after the picker on text-type tokens. */
+.dt-contrast-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.6em;
+  padding: 0.2em 0.45em;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  font-weight: bold;
+  white-space: nowrap;
+  min-width: 4.5em;
+  text-align: center;
+}
+
+/* Hide badge when empty (no valid color pair yet). */
+.dt-contrast-badge:empty {
+  display: none;
+}
+
+/* AAA: 7:1+ — excellent contrast. */
+.dt-contrast--aaa {
+  background: #2e7d32;
+  color: #fff;
+}
+
+/* AA: 4.5:1+ — passes for normal body text. */
+.dt-contrast--aa {
+  background: #1565c0;
+  color: #fff;
+}
+
+/* AA Large: 3:1–4.5:1 — passes only for large text and UI components. */
+.dt-contrast--large {
+  background: #e65100;
+  color: #fff;
+}
+
+/* Fail: below 3:1 — does not meet any WCAG threshold. */
+.dt-contrast--fail {
+  background: #c62828;
+  color: #fff;
+}
