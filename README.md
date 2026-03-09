@@ -128,3 +128,26 @@ in real time without a page reload.
 
 The [Opera theme](https://github.com/backdrop-contrib/opera) is the first theme to support
 Theme Tokens and serves as the reference implementation during development.
+
+Notes About Use of AI
+---------------------
+
+This module was developed with significant assistance from AI tools (specifically Claude by Anthropic). AI was used to generate code, plan features, and make iterative improvements throughout development. We welcome feedback. 
+
+Pull requests and issue reports are welcome.
+
+LICENSE
+---------------    
+
+This project is GPL v2 software. See the LICENSE.txt file in this directory 
+for complete text.
+
+CURRENT MAINTAINERS
+---------------    
+
+- Tim Erickson (https://github.com/stpaultim/)
+
+CREDITS   
+--------------- 
+
+Development supported by Simplo (by Triplo) - https://simplo.site

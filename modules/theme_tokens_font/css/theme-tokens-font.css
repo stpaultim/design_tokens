@@ -13,11 +13,6 @@
   max-width: 24rem;
 }
 
-/* Hidden when a preset is selected; shown for custom entry. */
-.theme-tokens-font-field-hidden {
-  display: none;
-}
-
 .theme-tokens-font-preview {
   margin-top: 0.75rem;
   padding: 0.6rem 0.8rem;

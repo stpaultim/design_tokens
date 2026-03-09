@@ -12,6 +12,20 @@
   margin-bottom: 1.5rem;
 }
 
+/* Navigation link to theme settings. */
+.theme-tokens-nav-link {
+  margin-bottom: 1rem;
+  color: #555;
+}
+
+/* Group description text inside fieldsets. */
+.theme-tokens-group-description {
+  color: #555;
+  font-size: 0.9em;
+  line-height: 1.5;
+  margin: 0 0 1rem;
+}
+
 /* Push the admin page content left when the preview panel is open. */
 body.theme-tokens-preview-open .l-page,
 body.theme-tokens-preview-open .layout-container {

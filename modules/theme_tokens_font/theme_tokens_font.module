@@ -174,10 +174,11 @@ function theme_tokens_font_build_field($token_name, array $token, array $current
     '#default_value' => $value,
     '#size' => 55,
     '#maxlength' => 255,
-    '#description' => t('Enter a CSS font-family value, or choose a preset above.'),
+    '#description' => t('Choose a font above or type a custom font name here.'),
     '#attributes' => array(
       'class' => array('theme-tokens-font-field'),
       'data-token-name' => $token_name,
+      'placeholder' => "e.g. 'Font Name', Georgia, serif",
     ),
     '#attached' => array(
       'js' => array(

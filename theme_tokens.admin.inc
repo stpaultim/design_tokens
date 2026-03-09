@@ -52,6 +52,14 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
 
   $form['#theme_name'] = $theme_name;
 
+  // Link to theme settings for options not managed by Theme Tokens.
+  $settings_url = url('admin/appearance/settings/' . $theme_name);
+  $form['settings_link'] = array(
+    '#type' => 'markup',
+    '#markup' => '<p class="theme-tokens-nav-link">' . t('For other theme options, see <a href="!url">theme settings</a>.', array('!url' => $settings_url)) . '</p>',
+    '#weight' => -250,
+  );
+
   // Collapse/expand all toggle button.
   $form['collapse_toggle'] = array(
     '#type' => 'markup',
@@ -109,19 +117,38 @@ function theme_tokens_settings_form($form, &$form_state, $theme_name) {
 
   // Render grouped tokens as fieldsets. First group is expanded and floated
   // above the preset scheme selector via a negative weight; rest are collapsed.
+  // Groups can be either a simple string label or an array with 'label' and
+  // optional 'description' keys.
   $first_group = TRUE;
-  foreach ($groups as $group_key => $group_label) {
+  foreach ($groups as $group_key => $group_def) {
     if (empty($grouped[$group_key])) {
       continue;
     }
 
+    // Support both simple string labels and arrays with label + description.
+    if (is_array($group_def)) {
+      $label = $group_def['label'];
+      $description = isset($group_def['description']) ? $group_def['description'] : '';
+    }
+    else {
+      $label = $group_def;
+      $description = '';
+    }
+
     $form[$group_key] = array(
       '#type' => 'fieldset',
-      '#title' => $group_label,
+      '#title' => $label,
       '#collapsible' => TRUE,
       '#collapsed' => !$first_group,
       '#weight' => $first_group ? -10 : 0,
     );
+    if ($description) {
+      $form[$group_key]['_description'] = array(
+        '#type' => 'markup',
+        '#markup' => '<p class="theme-tokens-group-description">' . $description . '</p>',
+        '#weight' => -100,
+      );
+    }
     $first_group = FALSE;
 
     foreach ($grouped[$group_key] as $token_name => $token) {

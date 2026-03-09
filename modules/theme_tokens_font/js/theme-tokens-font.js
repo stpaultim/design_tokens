@@ -3,17 +3,14 @@
  * Theme Tokens Font — admin field enhancement.
  *
  * Inserts a preset select dropdown and font preview for each font token field.
- * Google Fonts are loaded on demand when selected so the admin preview renders
- * in the correct typeface.
+ * The original text field remains always visible so the user can see (and edit)
+ * the actual CSS value. Google Fonts are loaded on demand when selected.
  */
 (function ($) {
   'use strict';
 
   /**
    * Dynamically injects a Google Fonts stylesheet if not already loaded.
-   *
-   * @param {string} googleFontSpec
-   *   The Google Fonts CSS2 API family spec, e.g. "Merriweather:wght@400;700".
    */
   function loadGoogleFont(googleFontSpec) {
     var id = 'theme-tokens-gf-' + googleFontSpec.replace(/[^a-zA-Z0-9]/g, '-');
@@ -31,8 +28,7 @@
     attach: function (context, settings) {
       var s = settings.themeTokensFont || {};
       var presets     = s.presets     || [];
-      var selectLabel = s.selectLabel || '— Choose a preset —';
-      var customLabel = s.customLabel || 'Custom font stack';
+      var selectLabel = s.selectLabel || '— Choose a font —';
       var previewText = s.previewText || 'The quick brown fox jumps over the lazy dog.';
 
       // Build a flat map: CSS value → google_font spec (for on-demand loading).
@@ -63,7 +59,6 @@
             if (font.value === current) {
               $opt.prop('selected', true);
               matchesPreset = true;
-              // Pre-load the font so the existing value renders correctly.
               if (font.google_font) {
                 loadGoogleFont(font.google_font);
               }
@@ -73,55 +68,37 @@
           $select.append($group);
         });
 
-        var $customGroup = $('<optgroup>').attr('label', customLabel);
-        var $customOpt   = $('<option>').val('custom').text('— ' + customLabel + '…');
-        $customGroup.append($customOpt);
-        $select.append($customGroup);
-
-        if (current && !matchesPreset) {
-          $customOpt.prop('selected', true);
-        }
-
         /* ---- Build the preview ------------------------------------------ */
         var $preview = $('<div class="theme-tokens-font-preview">').text(previewText);
         $preview.css('font-family', current || 'inherit');
 
         /* ---- Insert into DOM -------------------------------------------- */
-        $wrapper.prepend($select);
-        $field.after($preview);
-
-        // Hide the text field unless a custom value is active.
-        if (!current || matchesPreset) {
-          $field.addClass('theme-tokens-font-field-hidden');
-        }
+        $select.insertBefore($field);
+        $wrapper.append($preview);
 
         /* ---- Event handlers --------------------------------------------- */
+
+        // Select → update text field, preview, and iframe.
         $select.on('change', function () {
           var val = $(this).val();
-          if (val === 'custom') {
-            $field.removeClass('theme-tokens-font-field-hidden').focus();
+          if (!val) {
+            return;
           }
-          else if (val) {
-            $field.val(val).addClass('theme-tokens-font-field-hidden');
-            $preview.css('font-family', val);
-            // Load the Google Font for the admin preview if needed.
-            if (googleFontsMap[val]) {
-              loadGoogleFont(googleFontsMap[val]);
-              // Also load it inside the preview iframe.
-              if (Backdrop.themeTokens && Backdrop.themeTokens.loadFontInPreview) {
-                Backdrop.themeTokens.loadFontInPreview(googleFontsMap[val]);
-              }
-            }
-            // Send CSS variable update to the live preview iframe.
-            if (Backdrop.themeTokens && Backdrop.themeTokens.updatePreview) {
-              Backdrop.themeTokens.updatePreview($field.data('token-name'), val);
+          $field.val(val);
+          $preview.css('font-family', val);
+
+          if (googleFontsMap[val]) {
+            loadGoogleFont(googleFontsMap[val]);
+            if (Backdrop.themeTokens && Backdrop.themeTokens.loadFontInPreview) {
+              Backdrop.themeTokens.loadFontInPreview(googleFontsMap[val]);
             }
           }
-          else {
-            $field.addClass('theme-tokens-font-field-hidden');
+          if (Backdrop.themeTokens && Backdrop.themeTokens.updatePreview) {
+            Backdrop.themeTokens.updatePreview($field.data('token-name'), val);
           }
         });
 
+        // Text field → sync select, preview, and iframe.
         $field.on('input change', function () {
           var val = $(this).val();
           $preview.css('font-family', val || 'inherit');
@@ -135,10 +112,9 @@
             }
           });
           if (!matched) {
-            $customOpt.prop('selected', true);
+            $select.val('');
           }
 
-          // Send CSS variable update to the live preview iframe.
           if (Backdrop.themeTokens && Backdrop.themeTokens.updatePreview) {
             Backdrop.themeTokens.updatePreview($field.data('token-name'), val);
           }
