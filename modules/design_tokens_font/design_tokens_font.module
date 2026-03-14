@@ -89,6 +89,16 @@ function design_tokens_font_get_presets() {
         ),
       ),
     ),
+    array(
+      'label' => t('Display'),
+      'fonts' => array(
+        array(
+          'value'       => "'Ribeye Marrow', cursive",
+          'label'       => 'Ribeye Marrow',
+          'google_font' => 'Ribeye+Marrow',
+        ),
+      ),
+    ),
   );
 }
 
@@ -111,12 +121,17 @@ function design_tokens_font_get_google_fonts_map() {
 }
 
 /**
- * Implements hook_preprocess_html().
+ * Implements hook_css_alter().
  *
- * Loads Google Fonts stylesheets for any font tokens that use a Google Font,
- * combining them into a single request where possible.
+ * Adds a Google Fonts stylesheet for any font tokens whose value maps to a
+ * Google Font. All needed fonts are combined into a single request.
+ *
+ * Preset fonts use a known API spec (with weight variants). Custom fonts typed
+ * directly into the field are loaded by extracting the first font name from the
+ * CSS font-family stack and requesting it from Google Fonts without specific
+ * weight variants. If the name is not a valid Google Font it silently fails.
  */
-function design_tokens_font_preprocess_html(&$variables) {
+function design_tokens_font_css_alter(&$css) {
   global $theme;
 
   $info = design_tokens_load_info($theme);
@@ -141,11 +156,26 @@ function design_tokens_font_preprocess_html(&$variables) {
   $family_specs = array();
   foreach ($font_token_names as $token_name) {
     $value = isset($values[$token_name]) ? $values[$token_name] : '';
-    if ($value && isset($google_fonts_map[$value])) {
+    if (!$value) {
+      continue;
+    }
+
+    if (isset($google_fonts_map[$value])) {
+      // Known preset font — use its full spec (includes weight variants).
       $spec = $google_fonts_map[$value];
-      if (!in_array($spec, $family_specs)) {
-        $family_specs[] = $spec;
+    }
+    else {
+      // Custom font value — extract the first name and attempt a Google Fonts
+      // load without specific weight variants. Silently fails if not found.
+      $name = design_tokens_font_extract_name($value);
+      if (!$name) {
+        continue;
       }
+      $spec = str_replace(' ', '+', $name);
+    }
+
+    if (!in_array($spec, $family_specs)) {
+      $family_specs[] = $spec;
     }
   }
 
@@ -157,9 +187,49 @@ function design_tokens_font_preprocess_html(&$variables) {
   $query = 'family=' . implode('&family=', $family_specs) . '&display=swap';
   $url = 'https://fonts.googleapis.com/css2?' . $query;
 
-  backdrop_add_html_head_link(array('rel' => 'preconnect', 'href' => 'https://fonts.googleapis.com'));
-  backdrop_add_html_head_link(array('rel' => 'preconnect', 'href' => 'https://fonts.gstatic.com', 'crossorigin' => ''));
-  backdrop_add_html_head_link(array('rel' => 'stylesheet', 'href' => $url));
+  $css[$url] = array(
+    'data'        => $url,
+    'type'        => 'external',
+    'group'       => CSS_THEME,
+    'weight'      => -99,
+    'every_page'  => FALSE,
+    'media'       => 'all',
+    'preprocess'  => FALSE,
+    'browsers'    => array('IE' => TRUE, '!IE' => TRUE),
+  );
+}
+
+/**
+ * Extracts the primary font name from a CSS font-family value.
+ *
+ * Handles single-quoted names ('Open Sans'), double-quoted names ("Open Sans"),
+ * and unquoted names (Georgia). Generic family keywords (serif, sans-serif,
+ * monospace, etc.) are excluded.
+ *
+ * @param string $value
+ *   A CSS font-family value, e.g. "'Federo', sans-serif".
+ *
+ * @return string|NULL
+ *   The first font name, or NULL if only generic families are present.
+ */
+function design_tokens_font_extract_name($value) {
+  $value = trim($value);
+
+  // Try a leading quoted name (single or double quotes).
+  if (preg_match('/^[\'"]([^\'"]+)[\'"]/', $value, $matches)) {
+    return $matches[1];
+  }
+
+  // Unquoted: use everything before the first comma.
+  $parts = explode(',', $value, 2);
+  $name = trim($parts[0]);
+
+  $generics = array('serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace');
+  if ($name && !in_array(strtolower($name), $generics)) {
+    return $name;
+  }
+
+  return NULL;
 }
 
 /**
@@ -174,7 +244,7 @@ function design_tokens_font_build_field($token_name, array $token, array $curren
     '#default_value' => $value,
     '#size' => 55,
     '#maxlength' => 255,
-    '#description' => t('Choose a font above or type a custom font name here.'),
+    '#description' => t('Choose a preset font from the list above, or type a custom CSS font stack directly — for example, <code>\'Federo\', sans-serif</code>. If the first font name is available on <a href="https://fonts.google.com" target="_blank">Google Fonts</a>, it will be loaded automatically. Otherwise, the browser will fall back to the next font in the stack.'),
     '#attributes' => array(
       'class' => array('design-tokens-font-field'),
       'data-token-name' => $token_name,
@@ -200,7 +270,7 @@ function design_tokens_font_build_field($token_name, array $token, array $curren
         'designTokensFont' => array(
           'presets'     => design_tokens_font_get_presets(),
           'selectLabel' => t('— Choose a font —'),
-          'customLabel' => t('Other'),
+          'customLabel' => t('Google Font...'),
           'previewText' => t('The quick brown fox jumps over the lazy dog.'),
         ),
       ),

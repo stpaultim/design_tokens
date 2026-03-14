@@ -27,9 +27,10 @@
   Backdrop.behaviors.designTokensFont = {
     attach: function (context, settings) {
       var s = settings.designTokensFont || {};
-      var presets     = s.presets     || [];
-      var selectLabel = s.selectLabel || '— Choose a font —';
-      var previewText = s.previewText || 'The quick brown fox jumps over the lazy dog.';
+      var presets      = s.presets      || [];
+      var selectLabel  = s.selectLabel  || '— Choose a font —';
+      var customLabel  = s.customLabel  || 'Google Font...';
+      var previewText  = s.previewText  || 'The quick brown fox jumps over the lazy dog.';
 
       // Build a flat map: CSS value → google_font spec (for on-demand loading).
       var googleFontsMap = {};
@@ -68,6 +69,14 @@
           $select.append($group);
         });
 
+        // Add a "Google Font..." option at the bottom. Selected automatically
+        // when the text field holds a custom (non-preset) value.
+        var $googleFontOpt = $('<option>').val('__google_font__').text(customLabel);
+        $select.append($googleFontOpt);
+        if (!matchesPreset && current) {
+          $googleFontOpt.prop('selected', true);
+        }
+
         /* ---- Build the preview ------------------------------------------ */
         var $preview = $('<div class="design-tokens-font-preview">').text(previewText);
         $preview.css('font-family', current || 'inherit');
@@ -82,6 +91,11 @@
         $select.on('change', function () {
           var val = $(this).val();
           if (!val) {
+            return;
+          }
+          // "Google Font..." is a prompt — focus the text field for input.
+          if (val === '__google_font__') {
+            $field.focus().select();
             return;
           }
           $field.val(val);
@@ -112,7 +126,7 @@
             }
           });
           if (!matched) {
-            $select.val('');
+            $select.find('option[value="__google_font__"]').prop('selected', true);
           }
 
           if (Backdrop.designTokens && Backdrop.designTokens.updatePreview) {
