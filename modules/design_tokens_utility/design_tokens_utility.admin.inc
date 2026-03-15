@@ -73,8 +73,37 @@ function design_tokens_utility_reference_page($theme_name) {
 
         // Build a live swatch using actual saved token values.
         $bg_color = isset($current_values[$token_name]) ? $current_values[$token_name] : '#cccccc';
-        $text_color = isset($current_values[$token_name . '-text']) ? $current_values[$token_name . '-text'] : '#000000';
-        $link_color = isset($current_values[$token_name . '-link']) ? $current_values[$token_name . '-link'] : $text_color;
+
+        // Resolve text and link colors. Explicit companion tokens take priority;
+        // tokens with 'contrast_with' have their colors computed from luminance
+        // (matching Opera's template.php logic) using the theme's saved values.
+        if (isset($current_values[$token_name . '-text'])) {
+          $text_color = $current_values[$token_name . '-text'];
+        }
+        elseif (!empty($token['contrast_with'])) {
+          $is_dark = _design_tokens_utility_is_dark($bg_color);
+          $text_color = $is_dark
+            ? (isset($current_values['color-text-inverted']) ? $current_values['color-text-inverted'] : '#ffffff')
+            : (isset($current_values['color-text-default'])  ? $current_values['color-text-default']  : '#1a1a1a');
+        }
+        else {
+          // No companion token — derive text color from background luminance.
+          $is_dark = _design_tokens_utility_is_dark($bg_color);
+          $text_color = $is_dark
+            ? (isset($current_values['color-text-inverted']) ? $current_values['color-text-inverted'] : '#ffffff')
+            : (isset($current_values['color-text-default'])  ? $current_values['color-text-default']  : '#1a1a1a');
+        }
+
+        if (isset($current_values[$token_name . '-link'])) {
+          $link_color = $current_values[$token_name . '-link'];
+        }
+        else {
+          // No companion link token — derive from background luminance.
+          $is_dark = _design_tokens_utility_is_dark($bg_color);
+          $link_color = $is_dark
+            ? (isset($current_values['link-color-inverted']) ? $current_values['link-color-inverted'] : '#f0e6b8')
+            : (isset($current_values['link-color'])          ? $current_values['link-color']          : '#6e0e0a');
+        }
 
         $swatch_style = 'background-color: ' . check_plain($bg_color) . '; '
           . 'color: ' . check_plain($text_color) . '; '
@@ -89,9 +118,10 @@ function design_tokens_utility_reference_page($theme_name) {
         $swatch = '<span style="' . $swatch_style . '">.' . check_plain($class) . '</span>'
           . '<span style="' . $link_dot_style . '" title="' . t('Link color: @color', array('@color' => $link_color)) . '"></span>';
 
-        // Describe which properties are set.
-        $has_text = isset($tokens[$token_name . '-text']);
-        $has_link = isset($tokens[$token_name . '-link']);
+        // Describe which properties are set. All color utility classes set text
+        // and links (via companion tokens, contrast_with, or luminance fallback).
+        $has_text = TRUE;
+        $has_link = TRUE;
         $sets = array(t('background'));
         if ($has_text) {
           $sets[] = t('text');
@@ -129,6 +159,32 @@ function design_tokens_utility_reference_page($theme_name) {
         );
         break;
     }
+  }
+
+  // Add .dt-inverse row if the theme defines inverted text/link colors.
+  if (isset($tokens['color-text-inverted'])) {
+    $inv_text  = isset($current_values['color-text-inverted'])  ? $current_values['color-text-inverted']  : '#ffffff';
+    $inv_link  = isset($current_values['link-color-inverted'])  ? $current_values['link-color-inverted']  : $inv_text;
+    $dark_bg   = isset($current_values['color-primary'])        ? $current_values['color-primary']        : '#222222';
+
+    $swatch_style = 'background-color: ' . check_plain($dark_bg) . '; '
+      . 'color: ' . check_plain($inv_text) . '; '
+      . 'padding: 0.6rem 1rem; border-radius: 3px; font-size: 0.85rem; '
+      . 'display: inline-block; min-width: 10rem; font-family: monospace;';
+
+    $link_dot_style = 'display: inline-block; width: 1rem; height: 1rem; '
+      . 'background: ' . check_plain($inv_link) . '; '
+      . 'border-radius: 50%; vertical-align: middle; margin-left: 0.5rem;';
+
+    $swatch = '<span style="' . $swatch_style . '">.dt-inverse</span>'
+      . '<span style="' . $link_dot_style . '" title="' . t('Link color: @color', array('@color' => $inv_link)) . '"></span>';
+
+    $color_rows[] = array(
+      $swatch,
+      '<code>.dt-inverse</code>',
+      t('—'),
+      t('text, block title, links (no background)'),
+    );
   }
 
   if (!empty($color_rows)) {

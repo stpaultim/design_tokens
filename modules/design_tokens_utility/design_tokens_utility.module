@@ -12,7 +12,26 @@
  * For font tokens with 'utility' => TRUE, generates:
  * - .dt-font-{slug}: applies the font family to all text within the block.
  * - .dt-title-{slug}: applies the font family to .block-title within the block.
+ *
+ * Autocomplete support: attaches an autocomplete to the CSS class fields in
+ * the layout block configure form so site architects can discover and apply
+ * utility classes without consulting the reference page.
  */
+
+/**
+ * Implements hook_page_build().
+ *
+ * Loads the autocomplete scrollbar CSS and scroll-isolation JS on all admin
+ * pages. These assets must be on the main page, not just the AJAX dialog,
+ * because ul.autocomplete is injected into the main page's DOM at runtime.
+ */
+function design_tokens_utility_init() {
+  if (path_is_admin(current_path())) {
+    $module_path = backdrop_get_path('module', 'design_tokens_utility');
+    backdrop_add_css($module_path . '/css/design_tokens_utility.admin.css');
+    backdrop_add_js($module_path . '/js/design_tokens_utility.admin.js');
+  }
+}
 
 /**
  * Implements hook_menu().
@@ -26,6 +45,17 @@ function design_tokens_utility_menu() {
     'page arguments' => array(3),
     'access arguments' => array('administer design tokens'),
     'file' => 'design_tokens_utility.admin.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  // No wildcard — backdrop_valid_path() validates #autocomplete_path as-is,
+  // so the base path must exist. The search term is read from arg(2) inside
+  // the callback (Backdrop appends typed text as a trailing path component).
+  $items['design-tokens/autocomplete'] = array(
+    'title' => 'Design Tokens utility class autocomplete',
+    'page callback' => 'design_tokens_utility_autocomplete',
+    'delivery callback' => 'backdrop_json_deliver',
+    'access callback' => TRUE,
     'type' => MENU_CALLBACK,
   );
 
@@ -45,6 +75,195 @@ function design_tokens_utility_form_design_tokens_settings_form_alter(&$form, &$
     '#markup' => '<p>' . l(t('View available utility classes for this theme'), $reference_url) . '</p>',
     '#weight' => -49,
   );
+}
+
+/**
+ * Implements hook_module_implements_alter().
+ *
+ * Ensures our form alter runs after utility_css so our autocomplete path
+ * is not overwritten by that module.
+ */
+function design_tokens_utility_module_implements_alter(&$implementations, $hook) {
+  if ($hook === 'form_alter' && isset($implementations['design_tokens_utility'])) {
+    $group = $implementations['design_tokens_utility'];
+    unset($implementations['design_tokens_utility']);
+    $implementations['design_tokens_utility'] = $group;
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Attaches autocomplete to the CSS class fields in the block configure form
+ * so site architects can discover Design Tokens utility classes in context.
+ */
+function design_tokens_utility_form_layout_block_configure_form_alter(&$form, &$form_state) {
+  $active_theme = config_get('system.core', 'theme_default');
+  $supported = design_tokens_get_supported_themes();
+  if (!isset($supported[$active_theme])) {
+    return;
+  }
+
+  $fields = array('classes', 'title_classes', 'content_classes');
+  foreach ($fields as $field) {
+    if (isset($form['style']['style_settings'][$field])) {
+      $form['style']['style_settings'][$field]['#autocomplete_path'] = 'design-tokens/autocomplete';
+    }
+  }
+}
+
+/**
+ * Autocomplete callback: returns matching Design Tokens utility class names.
+ *
+ * Backdrop appends the typed string as a trailing path component when calling
+ * autocomplete endpoints, so the search term is read from arg(2). Supports
+ * space-separated multi-class input — already-entered classes are preserved
+ * and the search applies only to the last typed word.
+ *
+ * @return array
+ *   Associative array of class-name => HTML label pairs for the autocomplete.
+ */
+function design_tokens_utility_autocomplete() {
+  $active_theme = config_get('system.core', 'theme_default');
+
+  // Backdrop appends the search string as a trailing path component.
+  $search = arg(2);
+  if ($search === NULL) {
+    $search = '';
+  }
+
+  // Preserve already-entered classes; search only the last word.
+  $prefix = '';
+  if (strpos($search, ' ') !== FALSE) {
+    $parts = explode(' ', $search);
+    $search = array_pop($parts);
+    $prefix = implode(' ', $parts) . ' ';
+  }
+
+  $info = design_tokens_load_info($active_theme);
+  $current_values = design_tokens_get_values($active_theme);
+
+  if (empty($info['tokens'])) {
+    return array();
+  }
+
+  $candidates = _design_tokens_utility_autocomplete_candidates($info, $current_values);
+  $matches = array();
+
+  foreach ($candidates as $class => $label) {
+    if ($search === '' || strpos($class, $search) !== FALSE) {
+      $matches[$prefix . $class] = $label;
+    }
+  }
+
+  return $matches;
+}
+
+/**
+ * Builds the full list of utility class candidates with rich HTML labels.
+ *
+ * Returns every class that would be generated for the theme's utility tokens,
+ * with display labels suitable for the autocomplete dropdown. Color classes
+ * include a live swatch; font classes preview the typeface.
+ *
+ * @param array $info
+ *   Token info array from design_tokens_load_info().
+ * @param array $current_values
+ *   Current saved token values from design_tokens_get_values().
+ *
+ * @return array
+ *   Keyed by class name (e.g. 'dt-bg-block-1'), value is an HTML label string.
+ */
+function _design_tokens_utility_autocomplete_candidates(array $info, array $current_values) {
+  $candidates = array();
+  $tokens = $info['tokens'];
+
+  foreach ($tokens as $token_name => $token) {
+    if (empty($token['utility'])) {
+      continue;
+    }
+
+    $type = isset($token['type']) ? $token['type'] : '';
+    $group_label = _design_tokens_utility_group_label($token, $info);
+
+    switch ($type) {
+      case 'color':
+        $slug = preg_replace('/^color-/', '', $token_name);
+        $class = 'dt-bg-' . $slug;
+
+        $bg = isset($current_values[$token_name]) ? $current_values[$token_name] : '#cccccc';
+        $swatch_style = 'display:inline-block;width:0.85em;height:0.85em;'
+          . 'background:' . check_plain($bg) . ';'
+          . 'border:1px solid rgba(0,0,0,0.25);'
+          . 'border-radius:2px;'
+          . 'vertical-align:middle;'
+          . 'margin-right:4px;';
+
+        $label = '<span style="' . $swatch_style . '"></span>'
+          . '<strong>' . check_plain($class) . '</strong>';
+        if ($group_label) {
+          $label .= ' <span style="color:#666"> &mdash; ' . check_plain($group_label) . '</span>';
+        }
+
+        $candidates[$class] = $label;
+        break;
+
+      case 'font':
+        $slug = preg_replace('/^font-/', '', $token_name);
+        $font_value = isset($current_values[$token_name]) ? $current_values[$token_name] : 'inherit';
+        // First font name from the stack, stripped of quotes, for display.
+        $first_font = trim(preg_replace('/[\'"]/', '', strtok($font_value, ',')));
+
+        $font_style = 'color:#666;font-family:' . check_plain($font_value) . ';';
+
+        $class_all = 'dt-font-' . $slug;
+        $candidates[$class_all] = '<strong>' . check_plain($class_all) . '</strong>'
+          . ' <span style="' . $font_style . '"> &mdash; ' . check_plain($first_font) . ' (all text)</span>';
+
+        $class_title = 'dt-title-' . $slug;
+        $candidates[$class_title] = '<strong>' . check_plain($class_title) . '</strong>'
+          . ' <span style="' . $font_style . '"> &mdash; ' . check_plain($first_font) . ' (block title only)</span>';
+        break;
+    }
+  }
+
+  // Add .dt-inverse if the theme defines inverted text colors.
+  if (isset($tokens['color-text-inverted'])) {
+    $inverted = isset($current_values['color-text-inverted']) ? $current_values['color-text-inverted'] : '#ffffff';
+    $swatch_style = 'display:inline-block;width:0.85em;height:0.85em;'
+      . 'background:' . check_plain($inverted) . ';'
+      . 'border:1px solid rgba(0,0,0,0.25);'
+      . 'border-radius:2px;'
+      . 'vertical-align:middle;'
+      . 'margin-right:4px;';
+    $candidates['dt-inverse'] = '<span style="' . $swatch_style . '"></span>'
+      . '<strong>dt-inverse</strong>'
+      . ' <span style="color:#666"> &mdash; ' . t('Inverted text & links (for dark backgrounds)') . '</span>';
+  }
+
+  return $candidates;
+}
+
+/**
+ * Returns the human-readable group label for a token definition.
+ *
+ * @param array $token
+ *   A single token definition array.
+ * @param array $info
+ *   The full token info array (containing 'groups').
+ *
+ * @return string
+ *   The group label, or an empty string if not found.
+ */
+function _design_tokens_utility_group_label(array $token, array $info) {
+  if (empty($token['group']) || empty($info['groups'][$token['group']])) {
+    return '';
+  }
+  $g = $info['groups'][$token['group']];
+  if (is_array($g)) {
+    return isset($g['label']) ? $g['label'] : '';
+  }
+  return $g;
 }
 
 /**
@@ -101,6 +320,7 @@ function design_tokens_utility_generate_css($theme_name) {
   }
 
   $tokens = $info['tokens'];
+  $current_values = design_tokens_get_values($theme_name);
   $rules = array();
 
   foreach ($tokens as $token_name => $token) {
@@ -113,7 +333,7 @@ function design_tokens_utility_generate_css($theme_name) {
 
     switch ($type) {
       case 'color':
-        $rules = array_merge($rules, _design_tokens_utility_color_rules($token_name, $css_var, $tokens));
+        $rules = array_merge($rules, _design_tokens_utility_color_rules($token_name, $css_var, $tokens, $current_values));
         break;
 
       case 'font':
@@ -122,13 +342,81 @@ function design_tokens_utility_generate_css($theme_name) {
     }
   }
 
+  // Generate .dt-inverse whenever the theme defines inverted text/link colors.
+  // This class sets no background — it only overrides text and link colors to
+  // the theme's "inverted" values, for use on blocks with a dark background
+  // supplied by a layout region, image, or other external source.
+  $rules = array_merge($rules, _design_tokens_utility_inverse_rules($tokens));
+
   return implode("\n\n", $rules);
+}
+
+/**
+ * Returns TRUE if a hex color is perceptually dark.
+ *
+ * Uses the ITU-R BT.709 luminance formula. The threshold of 128 (out of 255)
+ * matches Opera's template.php block-color contrast logic.
+ *
+ * @param string $hex
+ *   A CSS hex color string, with or without leading '#'.
+ *
+ * @return bool
+ *   TRUE if the color is dark, FALSE if light.
+ */
+function _design_tokens_utility_is_dark($hex) {
+  $hex = ltrim($hex, '#');
+  if (strlen($hex) === 3) {
+    $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+  }
+  $r = hexdec(substr($hex, 0, 2));
+  $g = hexdec(substr($hex, 2, 2));
+  $b = hexdec(substr($hex, 4, 2));
+  return (0.2126 * $r + 0.7152 * $g + 0.0722 * $b) < 128;
+}
+
+/**
+ * Generates CSS rules for the .dt-inverse utility class.
+ *
+ * .dt-inverse applies the theme's inverted text and link colors without
+ * setting a background color. Use it on blocks that already have a dark
+ * background from a layout region, background image, or similar source, so
+ * that the default dark body text does not become unreadable.
+ *
+ * Only generated when the theme defines a 'color-text-inverted' token.
+ *
+ * @param array $all_tokens
+ *   All token definitions from tokens.inc.
+ *
+ * @return array
+ *   Array of CSS rule strings, empty if the required tokens are not defined.
+ */
+function _design_tokens_utility_inverse_rules(array $all_tokens) {
+  if (!isset($all_tokens['color-text-inverted'])) {
+    return array();
+  }
+
+  $class = '.dt-inverse';
+  $text_value = 'var(--color-text-inverted)';
+  $link_value = isset($all_tokens['link-color-inverted'])
+    ? 'var(--link-color-inverted)'
+    : 'var(--color-text-inverted)';
+
+  // !important is required: Opera's block-sequence selectors are highly
+  // specific (chaining 6+ classes) and would otherwise override this class.
+  // dt-inverse is an explicit architect override, so it must win.
+  return array(
+    $class . " {\n  color: " . $text_value . " !important;\n}",
+    $class . " .block-title {\n  color: " . $text_value . " !important;\n}",
+    $class . " a,\n" . $class . " a:visited {\n  color: " . $link_value . " !important;\n}",
+    $class . " a:hover,\n" . $class . " a:focus {\n  color: " . $link_value . " !important;\n}",
+  );
 }
 
 /**
  * Generates CSS rules for a color token utility class.
  *
- * Auto-discovers companion -text and -link tokens. Generates:
+ * Auto-discovers companion -text and -link tokens. Falls back to luminance-
+ * based contrast when no companion tokens exist. Generates:
  * - .dt-bg-{slug} with background + text color
  * - .dt-bg-{slug} .block-title with text color
  * - .dt-bg-{slug} a with link color
@@ -139,11 +427,13 @@ function design_tokens_utility_generate_css($theme_name) {
  *   The CSS variable reference (e.g. '--color-primary').
  * @param array $all_tokens
  *   All token definitions from tokens.inc, used to find companion tokens.
+ * @param array $current_values
+ *   Current saved token values, used for luminance fallback calculation.
  *
  * @return array
  *   Array of CSS rule strings.
  */
-function _design_tokens_utility_color_rules($token_name, $css_var, array $all_tokens) {
+function _design_tokens_utility_color_rules($token_name, $css_var, array $all_tokens, array $current_values = array()) {
   // Derive a short slug: 'color-primary' → 'primary', 'color-block-1' → 'block-1'.
   $slug = preg_replace('/^color-/', '', $token_name);
   $class = '.dt-bg-' . $slug;
@@ -153,28 +443,52 @@ function _design_tokens_utility_color_rules($token_name, $css_var, array $all_to
   $has_text = isset($all_tokens[$text_token]);
   $has_link = isset($all_tokens[$link_token]);
 
+  // Tokens with 'contrast_with' have their -text and -link CSS variables
+  // computed at runtime by the theme (e.g. Opera's luminance-based logic in
+  // template.php), even though those variables are not registered as tokens.
+  // Reference them in utility CSS so the computed colors are picked up.
+  $token_def = isset($all_tokens[$token_name]) ? $all_tokens[$token_name] : array();
+  if (!empty($token_def['contrast_with'])) {
+    $has_text = TRUE;
+    $has_link = TRUE;
+  }
+
+  // Determine text/link CSS values for the generated rules.
+  if ($has_text) {
+    $text_value = 'var(--' . $text_token . ')';
+  }
+  else {
+    // No companion token — use luminance of the saved background value to
+    // choose between the theme's inverted/default text and link CSS variables.
+    $bg_hex = isset($current_values[$token_name]) ? $current_values[$token_name] : '';
+    $is_dark = $bg_hex ? _design_tokens_utility_is_dark($bg_hex) : TRUE;
+    $text_value = $is_dark
+      ? 'var(--color-text-inverted, #ffffff)'
+      : 'var(--color-text-default, #1a1a1a)';
+  }
+
+  if ($has_link) {
+    $link_value = 'var(--' . $link_token . ')';
+  }
+  else {
+    $bg_hex = isset($current_values[$token_name]) ? $current_values[$token_name] : '';
+    $is_dark = $bg_hex ? _design_tokens_utility_is_dark($bg_hex) : TRUE;
+    $link_value = $is_dark
+      ? 'var(--link-color-inverted, #f0e6b8)'
+      : 'var(--link-color, #6e0e0a)';
+  }
+
   $rules = array();
 
-  // Wrapper: background + auto-paired text color.
-  $props = array('  background-color: var(' . $css_var . ');');
-  if ($has_text) {
-    $props[] = '  color: var(--' . $text_token . ');';
-  }
-  $rules[] = $class . " {\n" . implode("\n", $props) . "\n}";
+  // Wrapper: background + text color.
+  $rules[] = $class . " {\n  background-color: var(" . $css_var . ");\n  color: " . $text_value . ";\n}";
 
-  // Block title: ensure it inherits the paired text color.
-  if ($has_text) {
-    $rules[] = $class . " .block-title {\n  color: var(--" . $text_token . ");\n}";
-  }
+  // Block title: explicit override so heading styles don't override text color.
+  $rules[] = $class . " .block-title {\n  color: " . $text_value . ";\n}";
 
   // Links within the wrapper — including visited and hover states so the
   // sitewide a:visited and a:hover rules never override link colors in
-  // colored regions. Falls back to --link-color-inverted when no explicit
-  // link token is defined for this color set.
-  $link_value = $has_link
-    ? "var(--" . $link_token . ")"
-    : "var(--link-color-inverted, #f0e6b8)";
-
+  // colored regions.
   $rules[] = $class . " a,\n" . $class . " a:visited {\n  color: " . $link_value . ";\n}";
   $rules[] = $class . " a:hover,\n" . $class . " a:focus {\n  color: " . $link_value . ";\n}";
 

@@ -1,0 +1,13 @@
+/**
+ * @file
+ * Admin styles for Design Tokens Utility autocomplete.
+ */
+
+/**
+ * Backdrop's autocomplete popup is a <div id="autocomplete"> with overflow:hidden
+ * set in system.css. Override to allow scrolling when the list is long.
+ */
+#autocomplete {
+  max-height: 300px;
+  overflow-y: auto;
+}
