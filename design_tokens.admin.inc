@@ -224,7 +224,7 @@ function design_tokens_settings_form($form, &$form_state, $theme_name) {
       . '</div>'
       . '<iframe id="design-tokens-preview-iframe" src="' . check_plain($preview_url) . '" title="' . t('Live preview') . '"></iframe>'
       . '</div>',
-    '#weight' => -100,
+    '#weight' => -199,
   );
 
   $form['#attached']['js'][] = backdrop_get_path('module', 'design_tokens') . '/js/design-tokens-admin.js';
