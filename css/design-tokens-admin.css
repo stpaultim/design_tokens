@@ -26,6 +26,17 @@
   align-items: center;
 }
 
+/* Section headers that divide groups of token fieldsets. */
+.design-tokens-section-header {
+  margin: 1.5rem 0 0.25rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid #d0d0d0;
+  font-size: 1em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+}
+
 /* Group description text inside fieldsets. */
 .design-tokens-group-description {
   color: #555;

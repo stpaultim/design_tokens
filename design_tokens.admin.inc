@@ -163,6 +163,16 @@ function design_tokens_settings_form($form, &$form_state, $theme_name) {
     }
   }
 
+  // Build a map of group_key => section label if the theme declares sections.
+  $section_map = array();
+  if (!empty($info['sections'])) {
+    foreach ($info['sections'] as $section) {
+      foreach ($section['groups'] as $group_key) {
+        $section_map[$group_key] = $section['label'];
+      }
+    }
+  }
+
   // Render grouped tokens as fieldsets. Groups are assigned sequential
   // negative weights so they render in tokens.inc declaration order. The first
   // group gets the most negative weight and is expanded; the rest are collapsed.
@@ -170,9 +180,21 @@ function design_tokens_settings_form($form, &$form_state, $theme_name) {
   // optional 'description' keys.
   $first_group = TRUE;
   $group_weight = -10;
+  $current_section = NULL;
   foreach ($groups as $group_key => $group_def) {
     if (empty($grouped[$group_key])) {
       continue;
+    }
+
+    // Insert a section header when entering a new section.
+    if (!empty($section_map[$group_key]) && $section_map[$group_key] !== $current_section) {
+      $current_section = $section_map[$group_key];
+      $header_key = 'section_header_' . preg_replace('/[^a-z0-9]+/', '_', strtolower($current_section));
+      $form[$header_key] = array(
+        '#type'   => 'markup',
+        '#markup' => '<h3 class="design-tokens-section-header">' . check_plain($current_section) . '</h3>',
+        '#weight' => $group_weight++,
+      );
     }
 
     // Support both simple string labels and arrays with label + description.
