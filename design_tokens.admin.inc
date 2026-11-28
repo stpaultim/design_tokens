@@ -412,6 +412,78 @@ function design_tokens_build_field($token_name, array $token, array $current_val
 }
 
 /**
+ * Builds the form field for a token of the plain text type.
+ *
+ * Used for short CSS values such as a corner radius ("0.25rem") or a text
+ * transform ("uppercase"). A token can carry a 'description' (help text under
+ * the field) and, when only a few values make sense, 'options': an array of
+ * value => label, shown as a list to choose from.
+ *
+ * @param string $token_name
+ * @param array $token
+ *   Token definition from tokens.inc.
+ * @param array $current_values
+ *   Current saved/default values keyed by token name.
+ *
+ * @return array
+ *   A form element.
+ *
+ * @see design_tokens_text_validate()
+ */
+function design_tokens_build_text_field($token_name, array $token, array $current_values) {
+  $value = isset($current_values[$token_name]) ? $current_values[$token_name] : '';
+  $element = array(
+    '#title' => isset($token['label']) ? $token['label'] : $token_name,
+    '#default_value' => $value,
+    '#attributes' => array(
+      'class' => array('design-tokens-text-field'),
+      'data-token-name' => $token_name,
+    ),
+  );
+  if (!empty($token['description'])) {
+    $element['#description'] = filter_xss_admin($token['description']);
+  }
+
+  if (!empty($token['options']) && is_array($token['options'])) {
+    $options = $token['options'];
+    // A value saved before, or set by a scheme, that is not in the list stays
+    // available instead of being lost on the next save.
+    if ($value !== '' && !isset($options[$value])) {
+      $options = array($value => t('@value (custom)', array('@value' => $value))) + $options;
+    }
+    $element['#type'] = 'select';
+    $element['#options'] = $options;
+    return $element;
+  }
+
+  $element['#type'] = 'textfield';
+  $element['#size'] = 20;
+  $element['#maxlength'] = 64;
+  $element['#element_validate'] = array('design_tokens_text_validate');
+  return $element;
+}
+
+/**
+ * Element validation for a text token.
+ *
+ * The value goes straight into a CSS custom property, so it is limited to what
+ * short CSS values need: letters, numbers, spaces and . , % # ( ) + - / *.
+ * Comments, url() and expression() are refused.
+ */
+function design_tokens_text_validate($element, &$form_state) {
+  $value = trim($element['#value']);
+  if ($value !== '') {
+    $allowed = preg_match('/^[A-Za-z0-9_\s.,%#()+\-\/*]+$/', $value);
+    $refused = preg_match('#/\*|url\s*\(|expression\s*\(#i', $value);
+    if (!$allowed || $refused) {
+      form_error($element, t('%title can only contain letters, numbers, spaces and these characters: . , % # ( ) + - / *', array('%title' => $element['#title'])));
+      return;
+    }
+  }
+  form_set_value($element, $value, $form_state);
+}
+
+/**
  * Form submit handler — saves token values.
  */
 function design_tokens_settings_form_submit($form, &$form_state) {

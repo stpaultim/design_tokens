@@ -110,6 +110,12 @@ The parent calls `module_invoke_all('design_tokens_types')` when building the ad
 and delegates field rendering to whichever sub-module owns that type. Unknown token types
 in a `tokens.inc` are silently ignored (graceful degradation if a sub-module is disabled).
 
+The plain `text` type is the exception: the parent module registers it itself
+(`design_tokens_design_tokens_types()`, field `design_tokens_build_text_field()` in
+`design_tokens.admin.inc`), because a short CSS value such as a corner radius or a text
+transform needs no sub-module. A text token can have a `description` and `options` (value => label, shown as a list instead of a text field). Without `options`, its field refuses anything but letters, numbers, spaces and
+`. , % # ( ) + - / *`, and comments, `url()` and `expression()`.
+
 ### Storage
 
 Config file per theme: `theme.tokens.THEMENAME.json`

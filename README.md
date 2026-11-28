@@ -160,10 +160,12 @@ $info = array(
 | Key | Required | Description |
 |---|---|---|
 | `label` | Recommended | Label shown on the settings page. Falls back to the token name, but Site Architects see it, so give a real one. |
-| `type` | Yes | Token type (`color`, `font`, `text`). Unknown types show a plain text field. |
+| `type` | Yes | Token type: `color` and `font` come from their sub-modules; `text` is built in and shows a plain text field for a short CSS value such as a corner radius (`0.25rem`) or a text transform (`uppercase`). A token whose type no enabled module provides is not shown. |
 | `group` | No | Groups the token under a collapsible fieldset |
 | `default` | No | Only needed for a token that isn't in the variables file. A value in the variables file wins over it. |
 | `utility` | No | If `TRUE`, `design_tokens_utility` generates a utility CSS class for this token |
+| `description` | No | Help text shown under a `text` token's field, such as examples of values. |
+| `options` | No | For a `text` token, an array of `value => label`: the field becomes a list to choose from, for a property with only a few values such as `text-transform`. |
 | `contrast_with` | No | For a background color: the token to check its contrast against, or `auto`. Tokens ending in `-text` are paired with their background automatically. |
 
 The settings page warns about any token that ends up without a default.

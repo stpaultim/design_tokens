@@ -165,14 +165,31 @@ function design_tokens_css_alter(&$css) {
 }
 
 /**
+ * Implements hook_design_tokens_types().
+ *
+ * The parent module provides the plain text type itself, since it needs no
+ * sub-module: values such as a corner radius ("0.25rem") or a text transform
+ * ("uppercase"), edited in a text field.
+ */
+function design_tokens_design_tokens_types() {
+  return array(
+    'text' => array(
+      'label'          => t('Text'),
+      'field callback' => 'design_tokens_build_text_field',
+    ),
+  );
+}
+
+/**
  * Returns all registered token types provided by sub-modules.
  *
  * Each token type is provided by a sub-module implementing
- * hook_design_tokens_types(). The parent module uses this to delegate
- * field rendering to the appropriate sub-module.
+ * hook_design_tokens_types(), apart from the plain text type, which the
+ * parent module provides. The parent module uses this to delegate field
+ * rendering to the appropriate sub-module.
  *
  * @return array
- *   Keyed by type machine name (e.g. 'color', 'font'). Each value is an
+ *   Keyed by type machine name (e.g. 'color', 'font', 'text'). Each value is an
  *   array with keys:
  *   - 'label': Human-readable type name.
  *   - 'field callback': Function to call to build the form element.
